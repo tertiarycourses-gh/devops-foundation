@@ -71,7 +71,7 @@ Create `app/package.json`:
     "express": "^4.18.2",
     "prom-client": "^14.2.0",
     "cors": "^2.8.5",
-    "pg": "^8.11.0",
+    "sqlite3": "^5.1.6",
     "redis": "^4.6.7"
   },
   "devDependencies": {
@@ -86,7 +86,7 @@ Create `app/src/index.js`:
 const express = require("express");
 const promClient = require("prom-client");
 const cors = require("cors");
-const { Pool } = require("pg");
+const sqlite3 = require("sqlite3").verbose();
 const redis = require("redis");
 
 const app = express();
@@ -125,13 +125,8 @@ const databaseQueryDuration = new promClient.Histogram({
 });
 
 // Database connection
-const pool = new Pool({
-  user: process.env.DB_USER || "postgres",
-  host: process.env.DB_HOST || "postgres",
-  database: process.env.DB_NAME || "metrics_demo",
-  password: process.env.DB_PASSWORD || "password",
-  port: process.env.DB_PORT || 5432,
-});
+const dbPath = process.env.DB_PATH || "./database/metrics_demo.db";
+const db = new sqlite3.Database(dbPath);
 
 // Redis connection
 const redisClient = redis.createClient({
@@ -167,24 +162,24 @@ app.use((req, res, next) => {
 // Initialize database
 async function initDatabase() {
   try {
-    await pool.query(`
-            CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                name VARCHAR(100) NOT NULL,
-                email VARCHAR(100) UNIQUE NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
+    db.run(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
-    await pool.query(`
-            CREATE TABLE IF NOT EXISTS orders (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id),
-                amount DECIMAL(10,2) NOT NULL,
-                status VARCHAR(20) DEFAULT 'pending',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
+    db.run(`
+      CREATE TABLE IF NOT EXISTS orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER REFERENCES users(id),
+        amount REAL NOT NULL,
+        status TEXT DEFAULT 'pending',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
     console.log("Database initialized");
   } catch (error) {
@@ -223,15 +218,17 @@ app.get("/api/users", async (req, res) => {
       return res.json(JSON.parse(cached));
     }
 
-    const result = await pool.query(
-      "SELECT * FROM users ORDER BY created_at DESC"
-    );
-    const users = result.rows;
+    db.all("SELECT * FROM users ORDER BY created_at DESC", (err, rows) => {
+      if (err) {
+        timer({ query_type: "select_error" });
+        return res.status(500).json({ error: err.message });
+      }
 
-    // Cache for 5 minutes
-    await redisClient.setEx("users", 300, JSON.stringify(users));
-    timer({ query_type: "select" });
-    res.json(users);
+      // Cache for 5 minutes
+      redisClient.setEx("users", 300, JSON.stringify(rows));
+      timer({ query_type: "select" });
+      res.json(rows);
+    });
   } catch (error) {
     timer({ query_type: "select_error" });
     res.status(500).json({ error: error.message });
@@ -242,15 +239,34 @@ app.post("/api/users", async (req, res) => {
   const timer = databaseQueryDuration.startTimer();
   try {
     const { name, email } = req.body;
-    const result = await pool.query(
-      "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING *",
-      [name, email]
-    );
 
-    // Invalidate cache
-    await redisClient.del("users");
-    timer({ query_type: "insert" });
-    res.status(201).json(result.rows[0]);
+    db.run(
+      "INSERT INTO users (name, email) VALUES (?, ?)",
+      [name, email],
+      function (err) {
+        if (err) {
+          timer({ query_type: "insert_error" });
+          return res.status(500).json({ error: err.message });
+        }
+
+        // Get the inserted user
+        db.get(
+          "SELECT * FROM users WHERE id = ?",
+          [this.lastID],
+          (err, row) => {
+            if (err) {
+              timer({ query_type: "insert_error" });
+              return res.status(500).json({ error: err.message });
+            }
+
+            // Invalidate cache
+            redisClient.del("users");
+            timer({ query_type: "insert" });
+            res.status(201).json(row);
+          }
+        );
+      }
+    );
   } catch (error) {
     timer({ query_type: "insert_error" });
     res.status(500).json({ error: error.message });
@@ -260,14 +276,22 @@ app.post("/api/users", async (req, res) => {
 app.get("/api/orders", async (req, res) => {
   const timer = databaseQueryDuration.startTimer();
   try {
-    const result = await pool.query(`
-            SELECT o.*, u.name as user_name 
-            FROM orders o 
-            JOIN users u ON o.user_id = u.id 
-            ORDER BY o.created_at DESC
-        `);
-    timer({ query_type: "select_join" });
-    res.json(result.rows);
+    db.all(
+      `
+      SELECT o.*, u.name as user_name 
+      FROM orders o 
+      JOIN users u ON o.user_id = u.id 
+      ORDER BY o.created_at DESC
+    `,
+      (err, rows) => {
+        if (err) {
+          timer({ query_type: "select_join_error" });
+          return res.status(500).json({ error: err.message });
+        }
+        timer({ query_type: "select_join" });
+        res.json(rows);
+      }
+    );
   } catch (error) {
     timer({ query_type: "select_join_error" });
     res.status(500).json({ error: error.message });
@@ -278,12 +302,31 @@ app.post("/api/orders", async (req, res) => {
   const timer = databaseQueryDuration.startTimer();
   try {
     const { user_id, amount } = req.body;
-    const result = await pool.query(
-      "INSERT INTO orders (user_id, amount) VALUES ($1, $2) RETURNING *",
-      [user_id, amount]
+
+    db.run(
+      "INSERT INTO orders (user_id, amount) VALUES (?, ?)",
+      [user_id, amount],
+      function (err) {
+        if (err) {
+          timer({ query_type: "insert_error" });
+          return res.status(500).json({ error: err.message });
+        }
+
+        // Get the inserted order
+        db.get(
+          "SELECT * FROM orders WHERE id = ?",
+          [this.lastID],
+          (err, row) => {
+            if (err) {
+              timer({ query_type: "insert_error" });
+              return res.status(500).json({ error: err.message });
+            }
+            timer({ query_type: "insert" });
+            res.status(201).json(row);
+          }
+        );
+      }
     );
-    timer({ query_type: "insert" });
-    res.status(201).json(result.rows[0]);
   } catch (error) {
     timer({ query_type: "insert_error" });
     res.status(500).json({ error: error.message });
@@ -324,10 +367,16 @@ FROM node:16-alpine
 
 WORKDIR /app
 
+# Install SQLite
+RUN apk add --no-cache sqlite
+
 COPY package*.json ./
 RUN npm ci --only=production
 
 COPY . .
+
+# Create database directory
+RUN mkdir -p database
 
 EXPOSE 3000
 
@@ -362,10 +411,6 @@ scrape_configs:
       - targets: ["app:3000"]
     metrics_path: "/metrics"
     scrape_interval: 10s
-
-  - job_name: "postgres"
-    static_configs:
-      - targets: ["postgres-exporter:9187"]
 
   - job_name: "redis"
     static_configs:
@@ -593,19 +638,6 @@ Create `docker-compose.yml`:
 version: "3.8"
 
 services:
-  postgres:
-    image: postgres:13-alpine
-    environment:
-      POSTGRES_DB: metrics_demo
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    networks:
-      - monitoring
-
   redis:
     image: redis:7-alpine
     ports:
@@ -616,15 +648,13 @@ services:
   app:
     build: ./app
     environment:
-      DB_HOST: postgres
-      DB_USER: postgres
-      DB_PASSWORD: password
-      DB_NAME: metrics_demo
+      DB_PATH: ./database/metrics_demo.db
       REDIS_URL: redis://redis:6379
+    volumes:
+      - sqlite_data:/app/database
     ports:
       - "3000:3000"
     depends_on:
-      - postgres
       - redis
     networks:
       - monitoring
@@ -673,17 +703,6 @@ services:
     networks:
       - monitoring
 
-  postgres-exporter:
-    image: prometheuscommunity/postgres-exporter:latest
-    environment:
-      DATA_SOURCE_NAME: "postgresql://postgres:password@postgres:5432/metrics_demo?sslmode=disable"
-    ports:
-      - "9187:9187"
-    depends_on:
-      - postgres
-    networks:
-      - monitoring
-
   redis-exporter:
     image: oliver006/redis_exporter:latest
     environment:
@@ -711,7 +730,7 @@ services:
       - monitoring
 
 volumes:
-  postgres_data:
+  sqlite_data:
   prometheus_data:
   grafana_data:
 

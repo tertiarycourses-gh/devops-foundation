@@ -323,7 +323,7 @@ Create `apps/backend/package.json`:
   "dependencies": {
     "express": "^4.18.2",
     "cors": "^2.8.5",
-    "pg": "^8.11.0"
+    "sqlite3": "^5.1.6"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
@@ -336,7 +336,7 @@ Create `apps/backend/src/index.js`:
 ```javascript
 const express = require("express");
 const cors = require("cors");
-const { Pool } = require("pg");
+const sqlite3 = require("sqlite3").verbose();
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -345,25 +345,20 @@ app.use(cors());
 app.use(express.json());
 
 // Database connection
-const pool = new Pool({
-  user: process.env.DB_USER || "postgres",
-  host: process.env.DB_HOST || "postgres-service",
-  database: process.env.DB_NAME || "devops_demo",
-  password: process.env.DB_PASSWORD || "password",
-  port: process.env.DB_PORT || 5432,
-});
+const dbPath = process.env.DB_PATH || "./database/devops_demo.db";
+const db = new sqlite3.Database(dbPath);
 
 // Initialize database
 async function initDatabase() {
   try {
-    await pool.query(`
-            CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                name VARCHAR(100) NOT NULL,
-                email VARCHAR(100) UNIQUE NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
+    db.run(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
     console.log("Database initialized");
   } catch (error) {
     console.error("Database initialization error:", error);
@@ -382,10 +377,12 @@ app.get("/health", (req, res) => {
 // Get all users
 app.get("/api/users", async (req, res) => {
   try {
-    const result = await pool.query(
-      "SELECT * FROM users ORDER BY created_at DESC"
-    );
-    res.json(result.rows);
+    db.all("SELECT * FROM users ORDER BY created_at DESC", (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      res.json(rows);
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -395,11 +392,28 @@ app.get("/api/users", async (req, res) => {
 app.post("/api/users", async (req, res) => {
   try {
     const { name, email } = req.body;
-    const result = await pool.query(
-      "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING *",
-      [name, email]
+
+    db.run(
+      "INSERT INTO users (name, email) VALUES (?, ?)",
+      [name, email],
+      function (err) {
+        if (err) {
+          return res.status(500).json({ error: err.message });
+        }
+
+        // Get the inserted user
+        db.get(
+          "SELECT * FROM users WHERE id = ?",
+          [this.lastID],
+          (err, row) => {
+            if (err) {
+              return res.status(500).json({ error: err.message });
+            }
+            res.status(201).json(row);
+          }
+        );
+      }
     );
-    res.status(201).json(result.rows[0]);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -418,10 +432,16 @@ FROM node:16-alpine
 
 WORKDIR /app
 
+# Install SQLite
+RUN apk add --no-cache sqlite
+
 COPY package*.json ./
 RUN npm ci --only=production
 
 COPY . .
+
+# Create database directory
+RUN mkdir -p database
 
 EXPOSE 3001
 
@@ -454,75 +474,11 @@ metadata:
   name: app-config
   namespace: devops-demo
 data:
-  DB_NAME: "devops_demo"
-  DB_PORT: "5432"
+  DB_PATH: "/app/database/devops_demo.db"
   BACKEND_URL: "http://backend-service:3001"
 ```
 
-##### 4.3 Secrets
-
-Create `k8s/secrets/secret.yaml`:
-
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: db-secret
-  namespace: devops-demo
-type: Opaque
-data:
-  DB_USER: cG9zdGdyZXM= # postgres
-  DB_PASSWORD: cGFzc3dvcmQ= # password
-```
-
-##### 4.4 Database Deployment
-
-Create `k8s/deployments/postgres-deployment.yaml`:
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: postgres
-  namespace: devops-demo
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: postgres
-  template:
-    metadata:
-      labels:
-        app: postgres
-    spec:
-      containers:
-        - name: postgres
-          image: postgres:13-alpine
-          ports:
-            - containerPort: 5432
-          env:
-            - name: POSTGRES_DB
-              value: "devops_demo"
-            - name: POSTGRES_USER
-              valueFrom:
-                secretKeyRef:
-                  name: db-secret
-                  key: DB_USER
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: db-secret
-                  key: DB_PASSWORD
-          volumeMounts:
-            - name: postgres-storage
-              mountPath: /var/lib/postgresql/data
-      volumes:
-        - name: postgres-storage
-          persistentVolumeClaim:
-            claimName: postgres-pvc
-```
-
-##### 4.5 Backend Deployment
+##### 4.3 Backend Deployment
 
 Create `k8s/deployments/backend-deployment.yaml`:
 
@@ -549,28 +505,14 @@ spec:
           ports:
             - containerPort: 3001
           env:
-            - name: DB_HOST
-              value: "postgres-service"
-            - name: DB_NAME
+            - name: DB_PATH
               valueFrom:
                 configMapKeyRef:
                   name: app-config
-                  key: DB_NAME
-            - name: DB_PORT
-              valueFrom:
-                configMapKeyRef:
-                  name: app-config
-                  key: DB_PORT
-            - name: DB_USER
-              valueFrom:
-                secretKeyRef:
-                  name: db-secret
-                  key: DB_USER
-            - name: DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: db-secret
-                  key: DB_PASSWORD
+                  key: DB_PATH
+          volumeMounts:
+            - name: sqlite-storage
+              mountPath: /app/database
           livenessProbe:
             httpGet:
               path: /health
@@ -583,9 +525,13 @@ spec:
               port: 3001
             initialDelaySeconds: 5
             periodSeconds: 5
+      volumes:
+        - name: sqlite-storage
+          persistentVolumeClaim:
+            claimName: sqlite-pvc
 ```
 
-##### 4.6 Frontend Deployment
+##### 4.4 Frontend Deployment
 
 Create `k8s/deployments/frontend-deployment.yaml`:
 
@@ -631,24 +577,11 @@ spec:
             periodSeconds: 5
 ```
 
-##### 4.7 Services
+##### 4.5 Services
 
 Create `k8s/services/services.yaml`:
 
 ```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: postgres-service
-  namespace: devops-demo
-spec:
-  selector:
-    app: postgres
-  ports:
-    - port: 5432
-      targetPort: 5432
-  type: ClusterIP
----
 apiVersion: v1
 kind: Service
 metadata:
@@ -676,7 +609,7 @@ spec:
   type: ClusterIP
 ```
 
-##### 4.8 Ingress
+##### 4.6 Ingress
 
 Create `k8s/ingress/ingress.yaml`:
 
@@ -709,7 +642,7 @@ spec:
                   number: 3001
 ```
 
-##### 4.9 Storage
+##### 4.7 Storage
 
 Create `k8s/storage/pvc.yaml`:
 
@@ -717,7 +650,7 @@ Create `k8s/storage/pvc.yaml`:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: postgres-pvc
+  name: sqlite-pvc
   namespace: devops-demo
 spec:
   accessModes:
@@ -749,22 +682,15 @@ kind load docker-image backend-app:latest
 echo "Creating namespace..."
 kubectl apply -f k8s/namespaces/
 
-echo "Creating ConfigMaps and Secrets..."
+echo "Creating ConfigMaps..."
 kubectl apply -f k8s/configmaps/
-kubectl apply -f k8s/secrets/
 
 echo "Creating storage..."
 kubectl apply -f k8s/storage/
 
-echo "Deploying database..."
-kubectl apply -f k8s/deployments/postgres-deployment.yaml
-kubectl apply -f k8s/services/services.yaml
-
-echo "Waiting for database to be ready..."
-kubectl wait --for=condition=ready pod -l app=postgres -n devops-demo --timeout=300s
-
 echo "Deploying backend..."
 kubectl apply -f k8s/deployments/backend-deployment.yaml
+kubectl apply -f k8s/services/services.yaml
 
 echo "Waiting for backend to be ready..."
 kubectl wait --for=condition=ready pod -l app=backend -n devops-demo --timeout=300s
@@ -846,7 +772,6 @@ echo "Cleanup complete!"
    ```bash
    kubectl logs -f deployment/frontend -n devops-demo
    kubectl logs -f deployment/backend -n devops-demo
-   kubectl logs -f deployment/postgres -n devops-demo
    ```
 
 3. **Test API directly**:

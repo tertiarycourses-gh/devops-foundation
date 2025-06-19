@@ -25,7 +25,7 @@ We'll create a simple microservices application with:
 
 - **Frontend**: React application
 - **Backend API**: Node.js/Express service
-- **Database**: PostgreSQL
+- **Database**: SQLite
 - **Cache**: Redis
 - **Load Balancer**: Nginx
 
@@ -76,7 +76,7 @@ Create `backend/package.json`:
   "dependencies": {
     "express": "^4.18.2",
     "cors": "^2.8.5",
-    "pg": "^8.11.0",
+    "sqlite3": "^5.1.6",
     "redis": "^4.6.7"
   },
   "devDependencies": {
@@ -90,7 +90,7 @@ Create `backend/src/server.js`:
 ```javascript
 const express = require("express");
 const cors = require("cors");
-const { Pool } = require("pg");
+const sqlite3 = require("sqlite3").verbose();
 const redis = require("redis");
 
 const app = express();
@@ -101,13 +101,8 @@ app.use(cors());
 app.use(express.json());
 
 // Database connection
-const pool = new Pool({
-  user: process.env.DB_USER || "postgres",
-  host: process.env.DB_HOST || "postgres",
-  database: process.env.DB_NAME || "devops_demo",
-  password: process.env.DB_PASSWORD || "password",
-  port: process.env.DB_PORT || 5432,
-});
+const dbPath = process.env.DB_PATH || "./database/devops_demo.db";
+const db = new sqlite3.Database(dbPath);
 
 // Redis connection
 const redisClient = redis.createClient({
@@ -120,14 +115,14 @@ redisClient.connect();
 // Initialize database
 async function initDatabase() {
   try {
-    await pool.query(`
-            CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                name VARCHAR(100) NOT NULL,
-                email VARCHAR(100) UNIQUE NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
+    db.run(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
     console.log("Database initialized");
   } catch (error) {
     console.error("Database initialization error:", error);
@@ -147,14 +142,15 @@ app.get("/api/users", async (req, res) => {
       return res.json(JSON.parse(cached));
     }
 
-    const result = await pool.query(
-      "SELECT * FROM users ORDER BY created_at DESC"
-    );
-    const users = result.rows;
+    db.all("SELECT * FROM users ORDER BY created_at DESC", (err, rows) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
 
-    // Cache for 5 minutes
-    await redisClient.setEx("users", 300, JSON.stringify(users));
-    res.json(users);
+      // Cache for 5 minutes
+      redisClient.setEx("users", 300, JSON.stringify(rows));
+      res.json(rows);
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -163,15 +159,31 @@ app.get("/api/users", async (req, res) => {
 app.post("/api/users", async (req, res) => {
   try {
     const { name, email } = req.body;
-    const result = await pool.query(
-      "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING *",
-      [name, email]
+
+    db.run(
+      "INSERT INTO users (name, email) VALUES (?, ?)",
+      [name, email],
+      function (err) {
+        if (err) {
+          return res.status(500).json({ error: err.message });
+        }
+
+        // Get the inserted user
+        db.get(
+          "SELECT * FROM users WHERE id = ?",
+          [this.lastID],
+          (err, row) => {
+            if (err) {
+              return res.status(500).json({ error: err.message });
+            }
+
+            // Invalidate cache
+            redisClient.del("users");
+            res.status(201).json(row);
+          }
+        );
+      }
     );
-
-    // Invalidate cache
-    await redisClient.del("users");
-
-    res.status(201).json(result.rows[0]);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -191,10 +203,16 @@ FROM node:16-alpine
 
 WORKDIR /app
 
+# Install SQLite
+RUN apk add --no-cache sqlite
+
 COPY package*.json ./
 RUN npm ci --only=production
 
 COPY . .
+
+# Create database directory
+RUN mkdir -p database
 
 EXPOSE 3001
 
@@ -430,19 +448,6 @@ Create `docker-compose.yml`:
 version: "3.8"
 
 services:
-  postgres:
-    image: postgres:13-alpine
-    environment:
-      POSTGRES_DB: devops_demo
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    networks:
-      - app-network
-
   redis:
     image: redis:7-alpine
     ports:
@@ -453,13 +458,11 @@ services:
   backend:
     build: ./backend
     environment:
-      DB_HOST: postgres
-      DB_USER: postgres
-      DB_PASSWORD: password
-      DB_NAME: devops_demo
+      DB_PATH: ./database/devops_demo.db
       REDIS_URL: redis://redis:6379
+    volumes:
+      - sqlite_data:/app/database
     depends_on:
-      - postgres
       - redis
     networks:
       - app-network
@@ -484,7 +487,7 @@ services:
       - app-network
 
 volumes:
-  postgres_data:
+  sqlite_data:
 
 networks:
   app-network:
@@ -504,7 +507,6 @@ networks:
 
    - Frontend: http://localhost
    - Backend API: http://localhost/api/health
-   - Database: localhost:5432
    - Redis: localhost:6379
 
 4. **Test the application**:
@@ -528,7 +530,7 @@ networks:
 
 - ✅ Multi-container application running
 - ✅ Frontend communicating with backend
-- ✅ Database persistence
+- ✅ SQLite database persistence
 - ✅ Redis caching working
 - ✅ Load balancing through Nginx
 
@@ -551,4 +553,4 @@ networks:
 - [Docker Compose Documentation](https://docs.docker.com/compose/)
 - [Microservices Architecture](https://microservices.io/)
 - [Nginx Configuration](https://nginx.org/en/docs/)
-- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
+- [SQLite Documentation](https://www.sqlite.org/docs.html)

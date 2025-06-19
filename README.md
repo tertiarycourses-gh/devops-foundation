@@ -2,7 +2,7 @@
 
 ## Course Overview
 
-This comprehensive DevOps Foundation course provides hands-on training in modern DevOps practices, tools, and methodologies. The course is structured into 8 progressive topics, each with practical lab activities designed to build real-world skills.
+This comprehensive DevOps Foundation course provides hands-on training in modern DevOps practices, tools, and methodologies. The course is structured into 9 progressive topics, each with practical lab activities designed to build real-world skills.
 
 ## Course Structure
 
@@ -10,6 +10,7 @@ This comprehensive DevOps Foundation course provides hands-on training in modern
 
 Each topic is organized in its own folder with detailed lab activities:
 
+- **[00-coding-101](00-coding-101/README.md)** - Programming fundamentals with Python and JavaScript
 - **[01-exploring-devops](01-exploring-devops/README.md)** - Setting up your DevOps environment
 - **[02-core-devops-principles](02-core-devops-principles/README.md)** - CI/CD pipelines with GitHub Actions
 - **[03-key-devops-practices](03-key-devops-practices/README.md)** - Microservices with Docker Compose
@@ -20,6 +21,22 @@ Each topic is organized in its own folder with detailed lab activities:
 - **[08-sharing-shadowing-evolving](08-sharing-shadowing-evolving/README.md)** - Enterprise DevOps transformation
 
 ## Course Outline
+
+### 🐍 Topic 0: Coding Fundamentals
+
+**Programming Basics**
+
+- Introduction to Python and JavaScript
+- Variables, data types, and control flow
+- Functions and basic programming concepts
+- Setting up development environments
+
+**Lab Activity: Programming Fundamentals**
+
+- Learn Python basics with hands-on exercises
+- Master JavaScript fundamentals for web development
+- Build simple applications and projects
+- Practice problem-solving and logical thinking
 
 ### 📘 Topic 1: Exploring DevOps
 
@@ -56,7 +73,7 @@ Each topic is organized in its own folder with detailed lab activities:
 
 **Lab Activity: Deploying a Microservice with Docker Compose**
 
-- Build a multi-container application (Frontend, Backend, Database, Cache)
+- Build a multi-container application (Frontend, Backend, SQLite Database, Cache)
 - Implement service discovery and load balancing
 - Practice microservices architecture patterns
 
@@ -140,10 +157,12 @@ Each topic is organized in its own folder with detailed lab activities:
 
 ### 1. Environment Setup
 
-Start with Topic 1 to set up your development environment:
+Start with Topic 0 to learn programming fundamentals, then move to Topic 1 to set up your development environment:
 
 ```bash
-cd 01-exploring-devops
+cd 00-coding-101
+# Follow the README.md instructions for Python and JavaScript
+cd ../01-exploring-devops
 # Follow the README.md instructions
 ```
 
@@ -165,6 +184,11 @@ For each topic:
 - Apply learnings to real-world scenarios
 
 ## Tools and Technologies Covered
+
+### Programming Languages
+
+- **Python**: General-purpose programming language
+- **JavaScript/Node.js**: Web development and server-side scripting
 
 ### Development Tools
 
@@ -190,6 +214,11 @@ For each topic:
 - **Grafana**: Visualization and dashboards
 - **AlertManager**: Alert management
 
+### Databases
+
+- **SQLite**: Lightweight, file-based database
+- **Redis**: In-memory data structure store
+
 ### Project Management
 
 - **GitHub Projects**: Agile project management
@@ -197,6 +226,13 @@ For each topic:
 - **Jira**: Enterprise project management
 
 ## Learning Outcomes
+
+### Programming Skills
+
+- Write basic programs in Python and JavaScript
+- Understand programming concepts and syntax
+- Solve problems using code
+- Set up development environments
 
 ### Technical Skills
 
@@ -225,7 +261,7 @@ For each topic:
 
 ### Lab Completion
 
-- Complete all 8 topic labs
+- Complete all 9 topic labs
 - Document your work and findings
 - Participate in discussions and retrospectives
 
@@ -256,6 +292,8 @@ For each topic:
 - [Kubernetes Documentation](https://kubernetes.io/docs/)
 - [Docker Documentation](https://docs.docker.com/)
 - [GitHub Actions Documentation](https://docs.github.com/en/actions)
+- [Python Documentation](https://docs.python.org/)
+- [JavaScript Documentation](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
 
 ### Communities
 
@@ -291,6 +329,7 @@ This course is continuously updated to reflect the latest DevOps practices and t
 _Remember: DevOps is not just about tools, it's about culture, collaboration, and continuous improvement._
 
 ---
+
 ```
 FACILITATOR: SHARHAN ALHASSAN
 EMAIL : sharhanalhassan@gmail.com
