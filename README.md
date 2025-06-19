@@ -10,7 +10,7 @@ This comprehensive DevOps Foundation course provides hands-on training in modern
 
 Each topic is organized in its own folder with detailed lab activities:
 
-- **[00-coding-101](00-coding-101/README.md)** - Programming fundamentals with Python and JavaScript
+- **[00-coding-101](00-coding-101/README.md)** - Programming fundamentals with Python, JavaScript, and Bash commands
 - **[01-exploring-devops](01-exploring-devops/README.md)** - Setting up your DevOps environment
 - **[02-core-devops-principles](02-core-devops-principles/README.md)** - CI/CD pipelines with GitHub Actions
 - **[03-key-devops-practices](03-key-devops-practices/README.md)** - Microservices with Docker Compose
@@ -31,10 +31,19 @@ Each topic is organized in its own folder with detailed lab activities:
 - Functions and basic programming concepts
 - Setting up development environments
 
+**Bash Commands for DevOps**
+
+- Navigation and file operations commands
+- System information and monitoring
+- Text processing and data manipulation
+- Network connectivity and data transfer
+- Essential command-line skills for DevOps
+
 **Lab Activity: Programming Fundamentals**
 
 - Learn Python basics with hands-on exercises
 - Master JavaScript fundamentals for web development
+- Practice essential bash commands for system administration
 - Build simple applications and projects
 - Practice problem-solving and logical thinking
 

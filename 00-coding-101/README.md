@@ -2,14 +2,15 @@
 
 ## Overview
 
-This topic provides a gentle introduction to programming fundamentals using Python and JavaScript/Node.js. It's designed for learners who are new to coding or need a refresher before diving into DevOps practices.
+This topic provides a gentle introduction to programming fundamentals using Python, JavaScript/Node.js, and Bash commands. It's designed for learners who are new to coding or need a refresher before diving into DevOps practices.
 
 ## Learning Objectives
 
 - Understand basic programming concepts and syntax
 - Learn to write simple programs in Python and JavaScript
+- Master essential bash commands for system administration
 - Practice problem-solving and logical thinking
-- Set up development environments for both languages
+- Set up development environments for all languages
 - Build confidence with coding fundamentals
 
 ## Prerequisites
@@ -50,6 +51,14 @@ This topic provides a gentle introduction to programming fundamentals using Pyth
 │   └── projects/
 │       ├── todo_app.js
 │       └── web_server.js
+├── bash/
+│   ├── README.md
+│   ├── navigation_commands.md
+│   ├── file_operations_commands.md
+│   ├── file_viewing_commands.md
+│   ├── system_commands.md
+│   ├── text_processing_commands.md
+│   └── network_commands.md
 └── README.md (this file)
 ```
 
@@ -57,21 +66,29 @@ This topic provides a gentle introduction to programming fundamentals using Pyth
 
 ### Choose Your Path
 
-You can start with either Python or JavaScript, or work through both:
+You can start with any of the three paths, or work through all of them:
 
 1. **Python Path**: Start with `python/README.md` for a beginner-friendly introduction
 2. **JavaScript Path**: Start with `javascript/README.md` for web-focused learning
-3. **Both Paths**: Complete both for comprehensive programming foundation
+3. **Bash Path**: Start with `bash/README.md` for command-line mastery
+4. **All Paths**: Complete all three for comprehensive programming foundation
 
 ### Recommended Learning Order
 
-1. **Start with Python** (easier for beginners)
+1. **Start with Bash** (essential for DevOps)
+
+   - Follow the Bash README
+   - Learn navigation and file operations
+   - Master system and text processing commands
+   - Practice network and connectivity commands
+
+2. **Then learn Python** (easier for beginners)
 
    - Follow the Python README
    - Complete all basics exercises
    - Build the todo app project
 
-2. **Then learn JavaScript** (useful for web development)
+3. **Finally learn JavaScript** (useful for web development)
    - Follow the JavaScript README
    - Complete all basics exercises
    - Build the web server project
@@ -85,6 +102,14 @@ You can start with either Python or JavaScript, or work through both:
 - **Functions**: Organizing code into reusable blocks
 - **Error Handling**: Dealing with unexpected situations
 - **File Operations**: Reading and writing data
+
+### Bash Command Line
+
+- **Navigation Commands**: Moving around the file system
+- **File Operations**: Creating, copying, moving, and deleting files
+- **System Commands**: Monitoring system resources and processes
+- **Text Processing**: Searching, filtering, and transforming text
+- **Network Commands**: Testing connectivity and transferring data
 
 ### Problem-Solving Skills
 
@@ -116,11 +141,19 @@ You can start with either Python or JavaScript, or work through both:
 - **VS Code**: Code editor
 - **Browser Developer Tools**: For web development
 
+### Bash Environment
+
+- **Terminal/Command Prompt**: Command-line interface
+- **Bash Shell**: Command interpreter
+- **Text Editor**: For creating scripts
+- **System Tools**: Built-in command-line utilities
+
 ## Success Criteria
 
 By the end of this topic, you should be able to:
 
 - Write simple programs in both Python and JavaScript
+- Use bash commands effectively for system administration
 - Understand basic programming concepts and syntax
 - Solve programming problems independently
 - Set up and use development environments
@@ -128,10 +161,11 @@ By the end of this topic, you should be able to:
 
 ## Time Commitment
 
+- **Bash Commands**: 6-8 hours
 - **Python Basics**: 4-6 hours
 - **JavaScript Basics**: 4-6 hours
 - **Projects**: 2-4 hours each
-- **Total**: 10-20 hours
+- **Total**: 16-24 hours
 
 ## Next Steps
 
@@ -141,6 +175,7 @@ After completing this topic, you'll be ready to:
 - Understand code examples in later topics
 - Contribute to development discussions
 - Build confidence with technical concepts
+- Use command-line tools effectively
 
 ## Getting Help
 
@@ -162,6 +197,12 @@ After completing this topic, you'll be ready to:
 - [MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
 - [Eloquent JavaScript](https://eloquentjavascript.net/)
 - [JavaScript.info](https://javascript.info/)
+
+### Bash Resources
+
+- [Bash Reference Manual](https://www.gnu.org/software/bash/manual/)
+- [Advanced Bash-Scripting Guide](https://tldp.org/LDP/abs/html/)
+- [Bash Cheat Sheet](https://devhints.io/bash)
 
 ### General Programming
 
