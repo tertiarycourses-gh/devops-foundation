@@ -15,19 +15,7 @@ def health():
         'status': 'healthy'
     }
 
-@app.route('/ed')
-def ed():
-    return {
-        'message': 'Hello, Ed!',
-        'greeting': 'How are you?'
-    }
-
-@app.route('/johnny')
-def john():
-    return {
-        'message': 'Hello, John!',
-        'greeting': 'How are you?'
-    }
+## Do route for /ed
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
